@@ -1,0 +1,299 @@
+---
+title: "Assignment 1: Importing Data from Different Sources in R"
+author: "Aliane UMUTESI (RegNo: 20252MBI054)"
+date: "`25/10/2026`"
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+# Introduction
+
+I install the packages needed and import the **same dataset**
+(`students.sav`) from different sources, then show how each library helps
+to read, inspect and analyse the data:
+
+1. An **SPSS file** (`students.sav`), my original dataset (package **haven**)
+2. A **Stata file** (`students.dta`) (package **haven**)
+3. A **CSV file** (`students.csv`) (base R)
+4. A **JSON file** (`students.json`) (package **jsonlite**)
+5. A **database** (SQLite, `students.sqlite`) (packages **DBI** and **RSQLite**)
+6. A **public API** (package **jsonlite**)
+
+> Keep `students.sav` in the same folder as this `.Rmd` file.
+> The other files are created from it by the code below.
+
+---
+
+# Packages
+
+| Package | Why we need it |
+|---|---|
+| haven | Read and write SPSS and Stata files |
+| dplyr | Select, filter and summarise data |
+| jsonlite | Read and write JSON, and call web APIs |
+| DBI | Common interface for databases |
+| RSQLite | SQLite database driver (no server needed) |
+| knitr | Print neat tables |
+
+```{r install, eval=FALSE}
+# Run this ONCE in the console (not every time you knit)
+options(repos = c(CRAN = "https://cloud.r-project.org"))
+install.packages(c(
+  "rmarkdown", 
+  "knitr", 
+  "haven", 
+  "dplyr",
+                   
+  "jsonlite", 
+  "DBI", 
+  "RSQLite"))
+```
+
+```{r packages}
+library(haven)     # SPSS / Stata files
+library(dplyr)     # data manipulation
+library(jsonlite)  # JSON and APIs
+library(DBI)       # database interface
+library(RSQLite)   # SQLite driver
+library(knitr)     # tables
+```
+
+---
+
+# Source 1: SPSS file (.sav)
+
+**Function name:** `read_sav()`
+
+**Short description:** From the **haven** package. It reads an SPSS file into R
+and keeps the variable labels and value labels.
+
+**What we are doing with it:** Importing my dataset `students.sav`.
+
+```{r spss-import}
+students_spss <- read_sav("students.sav")
+
+dim(students_spss)   # rows and columns
+```
+
+The file has many variables, so I select the ones used in this assignment.
+Each variable has a label that explains its meaning.
+
+```{r spss-select}
+vars <- c("CNTRY", "AGEA", "GNDR", "EDUYRS", "HAPPY",
+          "STFLIFE", "TRSTPLT", "TRSTPRL")
+
+students <- students_spss |> select(all_of(vars))
+
+# Variable labels
+data.frame(variable = vars,
+           label = sapply(students, function(x) attr(x, "label"))) |>
+  kable(row.names = FALSE, caption = "Variables used and their labels")
+```
+
+```{r spss-inspect}
+head(students)
+str(students)
+summary(students)
+```
+
+Missing values per variable:
+
+```{r spss-missing}
+colSums(is.na(students))
+```
+
+---
+
+# Source 2: Stata file (.dta)
+
+**Function name:** `write_dta()`, `read_dta()`
+
+**Short description:** From **haven**. `write_dta()` saves a data frame as a Stata
+file and `read_dta()` reads a Stata file into R.
+
+**What we are doing with it:** Exporting the data to `students.dta`, then importing it back.
+
+```{r dta}
+write_dta(students, "students.dta")
+
+students_dta <- read_dta("students.dta")
+
+dim(students_dta)
+head(students_dta)
+summary(students_dta)
+```
+
+---
+
+# Source 3: CSV file
+
+**Function name:** `write.csv()`, `read.csv()`
+
+**Short description:** Base R functions. `write.csv()` saves a data frame as a
+comma-separated text file and `read.csv()` reads it back, using the first row
+as column names.
+
+**What we are doing with it:** CSV cannot store labels, so I first convert the
+coded variables (country and gender) to readable text and the others to numbers.
+
+```{r csv-prepare}
+students_clean <- students |>
+  mutate(CNTRY = as.character(as_factor(CNTRY)),
+         GNDR  = as.character(as_factor(GNDR)),
+         across(c(AGEA, EDUYRS, HAPPY, STFLIFE, TRSTPLT, TRSTPRL), as.numeric))
+
+head(students_clean)
+```
+
+```{r csv}
+write.csv(students_clean, "students.csv", row.names = FALSE)
+
+students_csv <- read.csv("students.csv")
+
+dim(students_csv)
+head(students_csv)
+summary(students_csv)
+```
+
+---
+
+# Source 4: JSON file
+
+**Function name:** `write_json()`, `fromJSON()`
+
+**Short description:** From **jsonlite**. `write_json()` saves a data frame as
+JSON and `fromJSON()` reads a JSON file into a data frame.
+
+**What we are doing with it:** Exporting the clean data to `students.json` and importing it.
+
+```{r json}
+write_json(students_clean, "students.json", pretty = TRUE)
+
+students_json <- fromJSON("students.json")
+
+dim(students_json)
+head(students_json)
+str(students_json)
+```
+
+---
+
+# Source 5: Database (SQLite)
+
+**Function name:** `dbConnect()`, `dbWriteTable()`, `dbGetQuery()`, `dbDisconnect()`
+
+**Short description:** From **DBI**. `dbConnect()` opens a connection,
+`dbWriteTable()` saves a data frame as a table, `dbGetQuery()` runs an SQL query
+and returns a data frame, and `dbDisconnect()` closes the connection.
+
+**What we are doing with it:** Saving the data in a SQLite database and
+importing it with SQL queries. (SQLite works on any computer without a server.
+For MySQL/MariaDB, only the `dbConnect()` line changes. See Assignment 2.)
+
+```{r db-connect}
+con <- dbConnect(RSQLite::SQLite(), "students.sqlite")
+
+dbWriteTable(con, "students", students_clean, overwrite = TRUE)
+
+dbListTables(con)
+```
+
+```{r db-import}
+# Import the whole table
+students_db <- dbGetQuery(con, "SELECT * FROM students")
+dim(students_db)
+head(students_db)
+```
+
+SQL queries return exactly the information we ask for:
+
+```{r db-sql}
+dbGetQuery(con, "
+  SELECT CNTRY AS country,
+         COUNT(*) AS respondents,
+         ROUND(AVG(AGEA), 1) AS mean_age,
+         ROUND(AVG(STFLIFE), 2) AS mean_life_satisfaction
+  FROM students
+  GROUP BY CNTRY
+  ORDER BY respondents DESC") |>
+  kable(caption = "Summary by country (SQL query)")
+```
+
+```{r db-close}
+dbDisconnect(con)
+```
+
+---
+
+# Source 6: Public API
+
+**Function name:** `fromJSON()` with a web address
+
+**Short description:** `fromJSON()` can read JSON directly from a web address (API).
+
+**What we are doing with it:** Importing a list of users from a public test API.
+This needs internet; if it is unavailable, a message is shown instead.
+
+```{r api}
+users <- tryCatch(
+  fromJSON("https://jsonplaceholder.typicode.com/users"),
+  error = function(e) { message("API not reachable: ", conditionMessage(e)); NULL }
+)
+
+if (!is.null(users)) {
+  print(dim(users))
+  head(users[, c("id", "name", "username", "email")])
+}
+```
+
+---
+
+# Checking that all sources give the same data
+
+```{r check}
+data.frame(
+  source = c("SPSS", "Stata", "CSV", "JSON", "SQLite"),
+  rows   = c(nrow(students_spss), nrow(students_dta), nrow(students_csv),
+             nrow(students_json), nrow(students_db)),
+  columns_used = c(ncol(students), ncol(students_dta), ncol(students_csv),
+                   ncol(students_json), ncol(students_db))
+) |> kable(caption = "Rows and columns imported from each source")
+```
+
+---
+
+# Using the libraries on the data
+
+Once imported, **dplyr** and base R work the same way on every source.
+
+```{r analysis}
+students_csv |>
+  filter(!is.na(GNDR)) |>
+  group_by(GNDR) |>
+  summarise(respondents = n(),
+            mean_age = round(mean(AGEA, na.rm = TRUE), 1),
+            mean_life_satisfaction = round(mean(STFLIFE, na.rm = TRUE), 2),
+            mean_trust_politicians = round(mean(TRSTPLT, na.rm = TRUE), 2)) |>
+  kable(caption = "Key indicators by gender")
+```
+
+```{r plot}
+hist(students_csv$STFLIFE, breaks = 0:10 - 0.5, col = "steelblue",
+     main = "Satisfaction with life (0-10)",
+     xlab = "Life satisfaction", ylab = "Respondents")
+```
+
+# Conclusion
+
+| Package | Function(s) | Used for |
+|---|---|---|
+| haven | `read_sav()`, `write_dta()`, `read_dta()` | SPSS and Stata files |
+| base R | `read.csv()`, `write.csv()` | CSV files |
+| jsonlite | `fromJSON()`, `write_json()` | JSON files and APIs |
+| DBI + RSQLite | `dbConnect()`, `dbGetQuery()` | Databases and SQL |
+| dplyr | `select()`, `mutate()`, `group_by()`, `summarise()` | Data manipulation |
+
+All six sources gave the same data in R, so the same analysis works on each one.
