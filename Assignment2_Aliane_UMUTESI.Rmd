@@ -1,0 +1,514 @@
+---
+title: "Assignment 2: R for Data Science, Practising the Lecturer's Code"
+author: "Aliane UMUTESI (RegNo: 20252MBI054)"
+output:
+  html_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+# 1. Introduction
+
+installation of R and RStudio,
+using R as a calculator, data importation, data description using numerical
+measures and graphs, and data structures (vectors, factors, lists, data frames,
+matrices and arrays).
+
+Important definitions in data science: **Statistics, Modelling, Computation, Calculus**.
+
+An R Markdown document can contain text and R code chunks. When we click **Knit**,
+the code is run and its output is shown in the document, for example:
+
+```{r cars}
+summary(cars)
+```
+
+Plots can also be embedded. The option `echo = FALSE` hides the code and shows only the plot:
+
+```{r pressure, echo=FALSE}
+plot(cars, main = "Speed and stopping distance of cars")
+```
+
+# 2. Data structures
+
+## Vectors
+
+A vector is the foundational R data structure.
+
+**Numeric**
+
+```{r numeric}
+x <- c(0.5, 0.6)
+age <- c(20, 35, 32, 29)
+summary(age)
+```
+
+```{r numeric2}
+age <- c(35, 24, 18, 24)
+mean(age)
+```
+
+**Logical, character, integer and complex**
+
+```{r other-vectors}
+x <- c(TRUE, FALSE)
+x <- c(T, F)
+
+x <- c("a", "b", "c")
+class_gender <- c("M", "F", "F", "M")
+
+x <- 9:29
+x
+
+x <- c(1+0i, 2+4i)
+x
+```
+
+## Matrix and operations within matrices
+
+```{r matrix}
+(x <- matrix(1:6, nrow = 2, ncol = 3))
+(y <- matrix(1:6, nrow = 3, ncol = 2))
+
+x %*% y        # matrix multiplication
+```
+
+## List
+
+```{r list}
+(x <- list(1, "a", TRUE, 1 + 4i))
+```
+
+## Factor
+
+```{r factor}
+x <- factor(c("yes", "yes", "no", "yes", "no"))
+x
+levels(x)
+table(x)
+```
+
+## Missing values (NA)
+
+```{r na}
+x <- c(1, 2, NA, 10, 3)
+is.na(x)                 # logical vector showing which elements are NA
+```
+
+A value written as the text `"NA"` is **not** a real missing value:
+
+```{r na-text}
+x <- c(1, 2, 4, "NA", 5)
+bad <- is.na(x)
+print(bad)
+x[!bad]
+```
+
+What if there are several R objects and we want the subset with no missing
+values in any of them? We use `complete.cases()`:
+
+```{r complete-cases}
+x <- c(1, 2, NA, 4, NA, 5)
+y <- c("a", "b", NA, "d", NA, "f")
+good <- complete.cases(x, y)
+good
+x[good]
+y[good]
+```
+
+## Coercion
+
+If a character is present in a vector, R converts everything to character
+strings. If a vector contains only logical values and numbers, R converts TRUE to 1
+and FALSE to 0:
+
+```{r coercion}
+c(1, "a", TRUE)
+sum(c(TRUE, TRUE, FALSE, FALSE, FALSE))
+```
+
+# 3. Creating data
+
+## Using a data frame
+
+A data frame is more general than a matrix because it can contain different
+modes of data (numeric, character, and so on), similar to a SPSS or SAS dataset.
+
+```{r dataframe}
+studentID  <- c(1, 2, 3, 4, 5)
+math_score <- c(12, 17, 10, 9, NA)
+gender     <- c("M", "F", "M", "M", "F")
+it_score   <- c(13, 18, 11, 10, 19)
+
+scoredata <- data.frame(studentID, gender, math_score, it_score)
+scoredata
+```
+
+## Creating data from the keyboard
+
+Steps: (1) create an empty data frame with variable names, (2) open the text
+editor with `edit()`. This is interactive, so it is not run when knitting.
+
+```{r keyboard, eval=FALSE}
+data_class2 <- data.frame(height = numeric(0), weight = numeric(0), bmi = numeric(0))
+data_class2 <- edit(data_class2)
+```
+
+# 4. Data importation
+
+R can import data from different sources: text files, spreadsheets, statistical
+packages (SAS, SPSS, Stata), web data (XML, web scraping) and database
+management systems (SQL, MySQL, Oracle, Access).
+
+## From a text file
+
+```{r import-txt}
+data_class <- read.table("class_data.txt", header = TRUE)
+
+variable.names(data_class)
+head(data_class)
+tail(data_class)
+data_class[10:20, ]
+```
+
+```{r txt-explore}
+summary(data_class$WEIGHT)
+length(data_class$WEIGHT)
+data_class$WEIGHT
+```
+
+## From a dataset built into R
+
+```{r builtin}
+# data()   # lists the datasets currently available
+data("airquality")
+variable.names(airquality)
+str(airquality)
+```
+
+## Homework 1: data from a statistical package and from a DBMS
+
+**Statistical package (SPSS)**: my dataset `students.sav`, read with the **haven** package.
+
+```{r hw-spss}
+library(haven)
+
+students <- read_sav("students.sav")
+dim(students)
+
+students_small <- students[, c("CNTRY", "AGEA", "GNDR", "STFLIFE", "TRSTPLT")]
+head(students_small)
+summary(students_small)
+```
+
+**Database management system**: the data is saved in a SQLite database with the
+**DBI** and **RSQLite** packages and imported back with an SQL query.
+(For MySQL only the `dbConnect()` line changes.)
+
+```{r hw-db}
+library(DBI)
+library(RSQLite)
+
+con <- dbConnect(RSQLite::SQLite(), "class.sqlite")
+dbWriteTable(con, "class_data", data_class, overwrite = TRUE)
+
+dbListTables(con)
+db_data <- dbGetQuery(con, "SELECT * FROM class_data WHERE HEIGHT > 165")
+db_data
+
+dbDisconnect(con)
+```
+
+# 5. Exploratory data analysis
+
+## Numerical variables: common summaries
+
+```{r eda-summary}
+summary(data_class)
+str(data_class)
+```
+
+## Summary statistics
+
+```{r eda-apply}
+apply(data_class, 1, mean)   # mean of each row
+apply(data_class, 2, sd)     # standard deviation of each column
+
+c(mean(data_class$HEIGHT), sd(data_class$HEIGHT))
+c(mean(data_class$WEIGHT), sd(data_class$WEIGHT))
+
+c(Mean = mean(data_class$HEIGHT), SD = sd(data_class$HEIGHT))
+c(Mean = mean(data_class$WEIGHT), SD = sd(data_class$WEIGHT))
+```
+
+# 6. Variation and covariation
+
+## Relationship between a categorical and a continuous variable
+
+```{r iris}
+data("iris")
+head(iris)
+
+mean(iris$Petal.Length)
+mean(iris$Petal.Length[iris$Species == "setosa"])
+mean(iris$Petal.Length[iris$Species == "versicolor"])
+mean(iris$Petal.Length[iris$Species == "virginica"])
+```
+
+A shortcut using `by()`:
+
+```{r iris-by}
+by(iris$Petal.Length, iris$Species, mean)
+by(iris$Petal.Length, iris$Species, sd)
+by(iris$Petal.Length, iris$Species, summary)
+```
+
+Box-and-whisker plot to visualise differences between categories:
+
+```{r iris-boxplot}
+boxplot(iris$Sepal.Length ~ iris$Species, data = iris,
+        main = "Comparison of categorical vs quantitative")
+```
+
+## Relationship between two categorical variables
+
+```{r ucb}
+ucba <- data.frame(UCBAdmissions)
+head(ucba)
+
+(cross <- xtabs(Freq ~ Gender + Admit, data = ucba))
+```
+
+Is there gender bias in the UC Berkeley graduate admission process?
+
+```{r ucb-prop}
+prop.table(cross, 1)
+```
+
+## Simpson's paradox
+
+A trend that appears in combined groups of data can disappear or reverse when
+the data is broken down into groups. In Department F, women were admitted at a
+slightly higher rate than men:
+
+```{r simpson}
+cross2 <- xtabs(Freq ~ Gender + Admit, data = ucba[ucba$Dept == "F", ])
+prop.table(cross2, 1)
+```
+
+# 7. Graphs
+
+## Bar charts
+
+```{r barplot1}
+dat <- read.table(text = "ProdA ProdB ProdC ProdD
+1 110 50 60 70
+2 120 50 80 65", header = TRUE)
+
+barplot(as.matrix(dat), beside = TRUE, col = c("Red", "green"),
+        main = "Products by group")
+```
+
+```{r barplot2}
+dat <- read.table(text = "A B C D E F G
+1 10 80 30 90 70 60  90
+2 20 50 70 50 40 10  40
+3 60 80 80 60 60 30 160
+4 20 40 70 80 20 10  70", header = TRUE)
+
+barplot(as.matrix(dat), main = "Stacked bar chart")
+```
+
+## Scatter plots
+
+```{r scatter}
+plot(WEIGHT ~ HEIGHT, data = data_class)
+plot(data_class$HEIGHT, data_class$WEIGHT)
+plot(data_class[, 1], data_class[, 2], main = "Graph")
+```
+
+```{r cor}
+cor(data_class$HEIGHT, data_class$WEIGHT)
+```
+
+# 8. Linear models
+
+```{r lm-plot}
+plot(WEIGHT ~ HEIGHT, data = data_class)
+abline(lm(WEIGHT ~ HEIGHT, data = data_class)$coefficient)
+```
+
+```{r lm}
+data_lm <- lm(HEIGHT ~ WEIGHT, data = data_class)
+summary(data_lm)
+```
+
+Diagnostic plots of the model:
+
+```{r lm-diagnostic, fig.show='hold', out.width='50%'}
+plot(data_lm)
+```
+
+Histograms:
+
+```{r hist}
+hist(data_class$HEIGHT)
+hist(data_class$WEIGHT, col = "blue")
+```
+
+Linear line together with a smooth (lowess) line:
+
+```{r lm-lowess}
+plot(WEIGHT ~ HEIGHT, data = data_class)
+abline(lm(WEIGHT ~ HEIGHT, data = data_class)$coefficient)
+lines(lowess(data_class$HEIGHT, data_class$WEIGHT), col = "blue")
+
+cor(data_class$HEIGHT, data_class$WEIGHT)
+lm(WEIGHT ~ HEIGHT, data = data_class)
+```
+
+**Interpretation:** the correlation is about 0.27 (weak and positive), and the
+slope of 0.36 means that each extra centimetre of height is associated with
+about 0.36 kg more weight. The relationship is weak (R-squared about 0.07, p-value about 0.08).
+
+# 9. Data management
+
+## Creating another variable (BMI)
+
+```{r bmi}
+BMI <- data_class$WEIGHT / (data_class$HEIGHT / 100)^2
+BMI <- round(BMI, digits = 2)
+
+head(cbind(data_class, BMI), n = 5)
+new_data_class <- cbind(data_class, BMI)
+tail(new_data_class, n = 10)
+```
+
+Summary of BMI:
+
+```{r bmi-summary}
+summary(BMI)
+stem(BMI, scale = 2)
+```
+
+## Dates
+
+```{r dates}
+today <- Sys.Date()
+format(today, format = "%B %d %Y")
+format(today, format = "%A")
+
+dob <- as.Date("1982-02-10")
+difftime(today, dob, units = "days")
+
+startdate <- as.Date("2004-02-13")
+enddate   <- as.Date("2011-01-22")
+enddate - startdate
+```
+
+# 10. Subsetting
+
+We use `$`, `[ ]` and `[[ ]]`.
+
+**Leadership data.** The study asks how men and women differ in the way they lead
+their organisations. Five questions were asked (1 = strongly disagree,
+2 = disagree, 3 = neither agree nor disagree, 4 = agree, 5 = strongly agree).
+In the `age` variable, 99 means the value is missing.
+
+```{r leadership}
+manager <- c(1, 2, 3, 4, 5)
+country <- c("US", "US", "UK", "UK", "UK")
+gender  <- c("M", "F", "F", "M", "F")
+age     <- c(32, 45, 25, 39, 99)
+q1 <- c(5, 3, 3, 3, 2)
+q2 <- c(4, 5, 5, 3, 2)
+q3 <- c(5, 2, 5, 4, 1)
+q4 <- c(5, 5, 5, NA, 2)
+q5 <- c(5, 5, 2, NA, 1)
+
+leadership <- data.frame(manager, country, gender, age, q1, q2, q3, q4, q5)
+str(leadership)
+names(leadership)
+```
+
+## Missing values and age categories
+
+```{r recode}
+leadership$age[leadership$age == 99] <- NA
+
+leadership$agecat[leadership$age > 75] <- "Elder"
+leadership$agecat[leadership$age >= 35 & leadership$age <= 75] <- "Middle Aged"
+leadership$agecat[leadership$age < 35] <- "Young"
+
+leadership
+```
+
+## Handling missing values
+
+Listwise deletion removes all observations with missing data. (Another option is to
+replace a missing value by the average of the remaining data.)
+
+```{r na-omit}
+is.na(leadership[, 5:9])
+
+newdata <- na.omit(leadership)
+newdata
+```
+
+## Sorting data
+
+```{r sort}
+order(leadership$age)
+newdata2 <- leadership[order(leadership$age), ]
+newdata2
+```
+
+## Merging data sets
+
+`merge()` joins two data frames horizontally using a common key. `rbind()` joins
+them vertically (they must have the same variables). Example:
+
+```{r merge}
+dataframeA <- data.frame(ID = c(1, 2, 3), country = c("US", "US", "UK"),
+                         score = c(10, 20, 30))
+dataframeB <- data.frame(ID = c(1, 2, 3), country = c("US", "US", "UK"),
+                         age = c(32, 45, 25))
+
+merge(dataframeA, dataframeB, by = "ID")                  # example 1
+merge(dataframeA, dataframeB, by = c("ID", "country"))    # example 2
+
+rbind(dataframeA, data.frame(ID = 4, country = "UK", score = 40))
+```
+
+## Selecting and dropping variables and observations
+
+```{r subset}
+newdata3 <- leadership[, c(5:9)]
+myvars <- c("q1", "q2", "q3", "q4", "q5")
+(newdata3 <- leadership[myvars])
+
+(newdata4 <- leadership[, -(1:5)])
+newdata5 <- leadership[, c(-1, -7)]
+
+leadership[[4]]
+leadership$age
+
+newdata6 <- leadership[c(2, 4, 5), ]
+newdata6
+
+newdata7 <- subset(leadership, age >= 35 | age < 24, select = c(q1, q2, q3, q4, q5))
+newdata7
+
+(newdata8 <- leadership[leadership$gender == "M" & leadership$age > 30, ])
+```
+
+# 11. Conclusion
+
+In this assignment I practised the code from the lecture: R data structures
+(vectors, matrices, lists, factors, data frames), missing values and coercion,
+data importation from text files, SPSS files and databases, exploratory data analysis,
+graphs (box plot, bar chart, scatter plot, histogram), linear models and data
+management (new variables, dates, recoding, sorting, merging and subsetting).
