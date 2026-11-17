@@ -1,0 +1,220 @@
+---
+title: "Assignment 3: Geom Variations in ggplot2"
+author: "Aliane UMUTESI RegNo:20252MBI054"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      fig.width = 7, fig.height = 4.5)
+```
+
+## Introduction
+
+The assignment asked to practice a list of `geom_` functions. 
+
+The dataset I use is `singer` from the `lattice` package. It has the heights (in inches) of singers from the New York Choral Society, and the column `voice.part` tells us whether someone is Bass, Tenor, Alto or Soprano (1 or 2). That is the same `voice.part` axis we saw on the slide in class.
+
+```{r packages}
+library(ggplot2)
+library(lattice)
+data(singer, package = "lattice")
+
+head(singer)
+str(singer)
+```
+
+So we have 235 singers, one numeric variable (`height`) and one categorical variable (`voice.part`). That is a nice mix for trying different geoms.
+
+The basic recipe I keep in mind is:
+
+`ggplot(data, aes(x, y)) + geom_something()`
+
+---
+
+## 1. geom_bar(): how many in each group?
+
+`geom_bar()` counts the rows for me, so I only give it an x variable.
+
+```{r bar}
+ggplot(singer, aes(x = voice.part)) +
+  geom_bar(fill = "steelblue") +
+  labs(title = "Number of singers per voice part", x = "Voice part", y = "Count")
+```
+
+**What I notice:** the groups are fairly balanced, with only small differences between them. If I already had the counts in a table, I would use `geom_col()` instead, because `geom_bar()` does the counting by itself.
+
+---
+
+## 2. geom_histogram(): the shape of one numeric variable
+
+```{r histogram}
+ggplot(singer, aes(x = height)) +
+  geom_histogram(binwidth = 1, fill = "skyblue", color = "white") +
+  labs(title = "Distribution of singer heights", x = "Height (inches)", y = "Count")
+```
+
+**What I notice:** most people sit in the middle and fewer are very short or very tall, which gives a rough bell shape. The `binwidth` matters. If I make it too big the shape disappears, and if I make it too small the plot looks noisy.
+
+---
+
+## 3. geom_density(): a smooth version of the histogram
+
+```{r density}
+ggplot(singer, aes(x = height, fill = voice.part)) +
+  geom_density(alpha = 0.4) +
+  labs(title = "Height density by voice part", x = "Height (inches)", fill = "Voice part")
+```
+
+**What I notice:** the curves for Bass and Tenor sit further to the right (taller people) and Soprano and Alto sit further to the left. The `alpha = 0.4` makes the fill see-through so overlapping curves can still be read.
+
+---
+
+## 4. geom_rug(): small ticks for the real data points
+
+A rug adds little tick marks on the axis, one for each observation. I like pairing it with a density curve so the smooth line is not hiding the raw data.
+
+```{r rug}
+ggplot(singer, aes(x = height)) +
+  geom_density(color = "darkgreen", linewidth = 1) +
+  geom_rug(alpha = 0.5) +
+  labs(title = "Density curve with a rug", x = "Height (inches)")
+```
+
+**What I notice:** where the ticks are packed together, the density curve is high. It is a simple way to show where the data really is.
+
+---
+
+## 5. geom_boxplot(): compare groups and spot outliers
+
+```{r boxplot}
+ggplot(singer, aes(x = voice.part, y = height, fill = voice.part)) +
+  geom_boxplot(show.legend = FALSE) +
+  labs(title = "Height by voice part", x = "Voice part", y = "Height (inches)")
+```
+
+
+**What I notice:** the Bass and Tenor boxes are clearly higher than the Alto and Soprano boxes. That makes sense, since the lower voice parts are mostly men, who on average are taller.
+
+---
+
+## 6. geom_violin(): a boxplot that also shows the shape
+
+```{r violin}
+ggplot(singer, aes(x = voice.part, y = height, fill = voice.part)) +
+  geom_violin(show.legend = FALSE) +
+  labs(title = "Violin plot of height by voice part", x = "Voice part", y = "Height (inches)")
+```
+
+**What I notice:** the width of each violin shows where most of the data is. It tells me more than a boxplot, for example if a group had two peaks, a boxplot would hide that.
+
+---
+
+## 7. geom_jitter(): show every point without overlap
+
+Many singers have the same height, so plain points would sit on top of each other. `geom_jitter()` moves them slightly sideways so I can see them all.
+
+```{r jitter}
+ggplot(singer, aes(x = voice.part, y = height)) +
+  geom_boxplot(outlier.shape = NA, fill = "grey90") +
+  geom_jitter(width = 0.15, alpha = 0.6, color = "tomato") +
+  labs(title = "Boxplot with jittered points", x = "Voice part", y = "Height (inches)")
+```
+
+**What I notice:** layering the raw points over the boxplot gives me both the summary and the real data. I set `outlier.shape = NA` so the outliers are not drawn twice.
+
+---
+
+## 8. geom_hline() and geom_vline(): reference lines
+
+These draw a fixed horizontal or vertical line, which is useful for marking an average.
+
+```{r hline}
+ggplot(singer, aes(x = voice.part, y = height)) +
+  geom_jitter(width = 0.15, alpha = 0.5) +
+  geom_hline(yintercept = mean(singer$height), linetype = "dashed", color = "red") +
+  labs(title = "Heights compared with the overall mean", x = "Voice part", y = "Height (inches)")
+```
+
+```{r vline}
+ggplot(singer, aes(x = height)) +
+  geom_histogram(binwidth = 1, fill = "grey80", color = "white") +
+  geom_vline(xintercept = mean(singer$height), color = "blue", linewidth = 1) +
+  labs(title = "Histogram with the mean marked", x = "Height (inches)", y = "Count")
+```
+
+**What I notice:** `geom_hline()` uses `yintercept` and `geom_vline()` uses `xintercept`. At first I kept mixing these up.
+
+---
+
+## 9. geom_line(): connect values in order
+
+A line plot is normally used for time, but I can also use it to connect the group averages. First I calculate the mean height for each voice part.
+
+```{r line}
+avg <- aggregate(height ~ voice.part, data = singer, FUN = mean)
+avg$height <- round(avg$height, 1)
+avg
+
+ggplot(avg, aes(x = voice.part, y = height, group = 1)) +
+  geom_line(color = "purple", linewidth = 1) +
+  labs(title = "Average height by voice part", x = "Voice part", y = "Mean height (inches)")
+```
+
+**What I notice:** I needed `group = 1`, otherwise ggplot does not know the categories belong to one line. The line falls from Bass 2 to Soprano 1, which matches what the boxplot showed. One honest caveat is that the voice parts are categories, not numbers, so the line is only a visual aid.
+
+---
+
+## 10. geom_text(): write labels on the plot
+
+Using the average table from above, I can print the value next to each point.
+
+```{r text}
+ggplot(avg, aes(x = voice.part, y = height, label = height)) +
+  geom_point(size = 3, color = "darkorange") +
+  geom_text(vjust = -1) +
+  ylim(60, 73) +
+  labs(title = "Average height with labels", x = "Voice part", y = "Mean height (inches)")
+```
+
+**What I notice:** the `label` aesthetic tells `geom_text()` what to print. `vjust = -1` lifts the text above the point so they do not overlap.
+
+---
+
+## 11. Bonus: geom_point() and geom_smooth()
+
+These two were commented out on the slide, but I tried them anyway since they are the most common geoms.
+
+```{r bonus}
+ggplot(mtcars, aes(x = wt, y = mpg)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(title = "Weight vs fuel efficiency", x = "Weight (1000 lbs)", y = "Miles per gallon")
+```
+
+**What I notice:** heavier cars have lower mpg. `geom_smooth(method = "lm")` draws a straight regression line, which connects nicely to my linear regression assignment.
+
+---
+
+## Summary
+
+| Geom | When I would use it |
+|------|---------------------|
+| `geom_bar` | Counting how many rows fall in each category |
+| `geom_histogram` | Shape of one numeric variable |
+| `geom_density` | Smooth version of the histogram, good for comparing groups |
+| `geom_rug` | Showing the real data points along an axis |
+| `geom_boxplot` | Comparing groups, spotting outliers |
+| `geom_violin` | Comparing groups and seeing their shape |
+| `geom_jitter` | Showing all points when many overlap |
+| `geom_hline` / `geom_vline` | Marking a mean or a threshold |
+| `geom_line` | Connecting ordered values, like time |
+| `geom_text` | Writing values or names on the plot |
+
+## What I learned
+
+The biggest lesson for me is that the same data looks different with each geom, and each one answers a different question. For one numeric variable I now reach for a histogram or density, for comparing groups a boxplot or violin, and when I want the real points I add `geom_jitter()` on top. I also learned that layers are added with `+`, and that things I want to change by data go inside `aes()` while fixed styling goes outside it.
