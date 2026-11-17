@@ -1,0 +1,217 @@
+---
+title: "Assignment 2: The apply() Family in R"
+author: "Aliane UMUTESI RegNo:20252MBI054"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+## Introduction
+
+When I first learned R, my instinct was to write a `for` loop for everything. The apply family is R's shorter and cleaner way to repeat an operation over rows, columns, list elements or groups. They all do a similar job, so the real skill is knowing **which one to pick** and **what kind of object it gives back**. That is what I focus on here.
+
+A quick overview before the examples:
+
+| Function | Works on | Returns |
+|----------|----------|---------|
+| `apply()` | Matrix / data frame (rows or columns) | Vector, matrix or list |
+| `lapply()` | List or vector | Always a **list** |
+| `sapply()` | List or vector | Simplified: vector or matrix if possible |
+| `vapply()` | List or vector | Like `sapply()` but with a **checked** output type |
+| `tapply()` | A vector split by a grouping factor | Array / named vector |
+| `mapply()` | Several vectors at once | Simplified vector or matrix |
+| `Map()` | Several vectors at once | Always a **list** |
+
+---
+
+## 1. apply(): over the rows or columns of a matrix
+
+The syntax is `apply(X, MARGIN, FUN)`. `MARGIN = 1` means rows and `MARGIN = 2` means columns.
+
+```{r apply}
+m <- matrix(1:12, nrow = 3, ncol = 4)
+m
+
+apply(m, 1, sum)   # sum of each row
+apply(m, 2, sum)   # sum of each column
+apply(m, 2, max)   # max of each column
+```
+
+It also works on data frames, as long as the columns I use are numeric.
+
+```{r apply-df}
+apply(mtcars[, c("mpg", "hp", "wt")], 2, mean)
+```
+
+I can pass my own function too, written inline:
+
+```{r apply-custom}
+apply(m, 1, function(row) max(row) - min(row))   # range of each row
+```
+
+**My note:** the 1 or 2 is easy to mix up. I remember it as "1 = rows, 2 = columns", the same order as `[row, column]`.
+
+---
+
+## 2. lapply(): loop over a list, get a list back
+
+`lapply()` takes a list (or vector) and applies a function to every element. The result is always a list.
+
+```{r lapply}
+my_list <- list(a = 1:5, b = c(10, 20, 30), c = c(2.5, 3.5))
+
+lapply(my_list, mean)
+lapply(my_list, length)
+```
+
+On a data frame, each column counts as one list element:
+
+```{r lapply-df}
+lapply(iris[, 1:4], mean)
+```
+
+**My note:** I use `lapply()` when I want to keep the result as a list, for example when each result has a different length.
+
+---
+
+## 3. sapply(): like lapply, but tidier
+
+`sapply()` does the same job but tries to simplify the result into a vector or matrix.
+
+```{r sapply}
+sapply(my_list, mean)
+sapply(iris[, 1:4], mean)
+```
+
+When each call returns several values, I get a matrix:
+
+```{r sapply-matrix}
+sapply(iris[, 1:4], range)
+```
+
+Compare that with `lapply(iris[, 1:4], mean)` above, which printed a list. The numbers are identical and only the container changes.
+
+**My note:** `sapply()` is convenient, but because it *guesses* the output type, it can surprise me. That is why `vapply()` exists.
+
+---
+
+## 4. vapply(): the safer sapply
+
+With `vapply()` I must declare what kind of value each call returns, using `FUN.VALUE`. If something does not match, R stops with an error instead of quietly returning something odd.
+
+```{r vapply}
+vapply(iris[, 1:4], mean, FUN.VALUE = numeric(1))
+```
+
+`numeric(1)` means "each call must return exactly one number". For a function that returns two values:
+
+```{r vapply-two}
+vapply(iris[, 1:4], range, FUN.VALUE = numeric(2))
+```
+
+Here is the kind of problem it prevents. `sapply()` on an empty input gives back an empty `list()`, but `vapply()` still returns an empty numeric vector:
+
+```{r vapply-empty}
+sapply(list(), length)
+vapply(list(), length, FUN.VALUE = integer(1))
+```
+
+**My note:** for quick exploring I use `sapply()`. For code I want to trust, I use `vapply()`.
+
+---
+
+## 5. tapply(): apply a function by group
+
+`tapply(X, INDEX, FUN)` splits a vector by a grouping variable and applies the function to each group. It is the apply-version of "group by".
+
+```{r tapply}
+tapply(iris$Sepal.Length, iris$Species, mean)
+tapply(mtcars$mpg, mtcars$cyl, mean)
+```
+
+Two grouping variables give a table:
+
+```{r tapply-two}
+tapply(mtcars$mpg, list(cyl = mtcars$cyl, gear = mtcars$gear), mean)
+```
+
+**My note:** the `NA` cells in that table are not mistakes. They mean there is no car with that cylinder and gear combination.
+
+---
+
+## 6. mapply(): several inputs at the same time
+
+`mapply()` walks through multiple vectors in parallel, taking the first element of each, then the second, and so on.
+
+```{r mapply}
+mapply(function(x, y) x + y, 1:5, 6:10)
+mapply(rep, 1:3, 3:1)
+```
+
+In the second example it computes `rep(1, 3)`, `rep(2, 2)` and `rep(3, 1)`.
+
+With names and extra arguments:
+
+```{r mapply-names}
+mapply(function(name, n) paste(name, "has", n, "letters"),
+       c("R", "Python", "Java"),
+       c(1, 6, 4))
+```
+
+(Yes, the counts are not real letter counts. I made them up just to show how two vectors line up.)
+
+---
+
+## 7. Map(): the list-returning cousin of mapply
+
+`Map()` works like `mapply()` but always returns a list.
+
+```{r map}
+Map(function(x, y) x * y, 1:3, 4:6)
+```
+
+---
+
+## 8. Putting it side by side
+
+Same task, mean of the four numeric iris columns, done several ways:
+
+```{r compare}
+apply(iris[, 1:4], 2, mean)                 # named vector
+sapply(iris[, 1:4], mean)                   # named vector
+vapply(iris[, 1:4], mean, numeric(1))       # named vector, type-checked
+str(lapply(iris[, 1:4], mean))              # list
+```
+
+And the for loop I would have written before:
+
+```{r loop}
+result <- numeric(4)
+for (i in 1:4) {
+  result[i] <- mean(iris[, i])
+}
+names(result) <- names(iris)[1:4]
+result
+```
+
+Same answer, but the apply version is one line and much easier to read.
+
+---
+
+## Summary: how I choose
+
+- Rows or columns of a matrix? Use `apply()`.
+- A list or columns of a data frame, and I want a list back? Use `lapply()`.
+- Same, but I want a neat vector or matrix? Use `sapply()`, or `vapply()` when I want it safe.
+- Need a statistic for each group? Use `tapply()`.
+- Looping over two or more vectors together? Use `mapply()`, or `Map()` for a list.
+
+## What I learned
+
+The apply functions are less about being fancy and more about being clear. The main difference between them is the **input they expect** and the **shape of the output**. If I am ever stuck, I ask myself two questions: "what am I looping over?" and "what do I want back?", and the answer points to the right function.
