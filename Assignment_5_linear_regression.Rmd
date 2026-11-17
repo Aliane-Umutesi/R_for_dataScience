@@ -1,0 +1,210 @@
+---
+title: "Assignment 3: Linear Regression in R"
+author: "Aliane UMUTESI RegNo:20252MBI054"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      fig.width = 7, fig.height = 4.5)
+```
+
+## Introduction
+
+Linear regression is a way of describing how one numeric outcome changes when other variables change:
+
+1. Simple linear regression on the built-in `women` dataset.
+2. A polynomial version of it, to see if a curve fits better than a straight line.
+3. Multiple linear regression on a dataset I chose myself (`mtcars`), as the homework asked.
+4. Regression diagnostics, to check whether the model's assumptions are reasonable.
+
+---
+
+## 1. Simple linear regression: women
+
+The `women` dataset has the average height and weight of American women aged 30 to 39. Can height predict weight?
+
+```{r women-look}
+head(women)
+```
+
+First the scatter plot, always the first step:
+
+```{r women-plot}
+plot(women$height, women$weight,
+     xlab = "Height (in inches)", ylab = "Weight (in pounds)",
+     main = "Women: height vs weight", pch = 19)
+```
+
+The points go up almost in a straight line. Now I fit the model with `lm(y ~ x, data)`:
+
+```{r fit1}
+fit1 <- lm(weight ~ height, data = women)
+summary(fit1)
+```
+
+**How I interpret this:**
+
+- **Intercept (about -87.5):** the predicted weight at height 0. This number has no real meaning here because nobody has zero height. It just anchors the line.
+- **Slope for height (about 3.45):** for every extra inch of height, weight goes up by about 3.45 pounds on average.
+- **p-value of the slope:** it is extremely small, so height is clearly related to weight in this data.
+- **R-squared (about 0.99):** height alone explains roughly 99% of the variation in weight.
+
+Adding the fitted line to the plot:
+
+```{r fit1-line}
+plot(women$height, women$weight,
+     xlab = "Height (in inches)", ylab = "Weight (in pounds)", pch = 19)
+lines(women$height, fitted(fit1), col = "blue", lwd = 2)
+```
+
+The line looks good, but if I look closely, the points curve a little away from it at both ends. That makes me curious about a curved model.
+
+---
+
+## 2. Polynomial regression: adding a squared term
+
+I add `height^2` with `I()`, which tells R to treat it as a real square and not as formula syntax.
+
+```{r fit2}
+fit2 <- lm(weight ~ height + I(height^2), data = women)
+summary(fit2)
+```
+
+```{r fit2-plot}
+plot(women$height, women$weight,
+     xlab = "Height (in inches)", ylab = "Weight (in pounds)", pch = 19)
+lines(women$height, fitted(fit2), col = "red", lwd = 2)
+```
+
+Comparing the two models:
+
+```{r compare-fits}
+anova(fit1, fit2)
+c(AIC_linear = AIC(fit1), AIC_quadratic = AIC(fit2))
+```
+
+**How I interpret this:** the squared term is significant, R-squared goes up a bit, and the AIC is lower for the quadratic model (lower is better). So the curve fits better. The `anova()` test points the same way. The catch is that the straight line was already very good, so the improvement is small. In practice I would also think about whether a curve makes sense for the real-world story, not only the numbers.
+
+---
+
+## 3. Multiple linear regression (homework)
+
+> HW: Find a data set on which you can fit multiple linear regression and interpret your results.
+
+I chose `mtcars`. The question is: **what drives a car's fuel efficiency (`mpg`)?** My predictors are weight (`wt`), horsepower (`hp`) and number of cylinders (`cyl`, which I turn into a factor since it is really a category).
+
+```{r mtcars-prep}
+cars <- mtcars
+cars$cyl <- factor(cars$cyl)
+str(cars[, c("mpg", "wt", "hp", "cyl")])
+```
+
+A quick look at how the numeric variables relate to each other:
+
+```{r mtcars-cor}
+round(cor(mtcars[, c("mpg", "wt", "hp")]), 2)
+pairs(mtcars[, c("mpg", "wt", "hp")], pch = 19, col = "steelblue")
+```
+
+`wt` and `hp` are positively correlated with each other (heavier cars tend to be stronger), and both are negatively correlated with `mpg`. That is worth remembering, since predictors that overlap can make coefficients harder to interpret.
+
+I start with the two numeric predictors:
+
+```{r fit3}
+fit3 <- lm(mpg ~ wt + hp, data = cars)
+summary(fit3)
+```
+
+**How I interpret this:**
+
+- **Intercept (about 37.2):** the predicted mpg for a car with `wt = 0` and `hp = 0`. Not realistic, but it is the baseline of the equation.
+- **wt (about -3.88):** holding horsepower constant, each extra 1000 lbs of weight lowers mpg by about 3.9.
+- **hp (about -0.032):** holding weight constant, each extra horsepower lowers mpg by about 0.03.
+- **R-squared (about 0.83):** the two variables together explain roughly 83% of the variation in mpg.
+- The phrase **"holding the other variables constant"** is the key difference from simple regression, because each coefficient is the effect of one variable with the others fixed.
+
+Now I add the cylinder factor to see if it helps:
+
+```{r fit4}
+fit4 <- lm(mpg ~ wt + hp + cyl, data = cars)
+summary(fit4)
+anova(fit3, fit4)
+```
+
+For a factor, R picks the first level (4 cylinders) as the reference, and the `cyl6` and `cyl8` rows are the differences compared with 4-cylinder cars. When I compare the two models with `anova()`, I look at the p-value to decide whether adding `cyl` improves the fit enough to keep it. If the p-value is large, the simpler model `fit3` is the better choice, since a simpler model that works equally well is easier to explain.
+
+A prediction from the model: a car weighing 3000 lbs (`wt = 3`) with 120 hp.
+
+```{r predict}
+predict(fit3, newdata = data.frame(wt = 3, hp = 120),
+        interval = "prediction")
+```
+
+The output gives a predicted mpg plus a range in which a new car like that would likely fall.
+
+---
+
+## 4. Regression diagnostics
+
+A model can have a great R-squared and still be unreliable if its assumptions are broken. Linear regression assumes:
+
+1. The relationship is **linear**.
+2. The residuals are **normally distributed**.
+3. The residuals have **constant variance** (homoscedasticity).
+4. The observations are **independent**, and there are no overly influential points.
+
+I check these for `fit3`. The `plot()` function on a model gives four diagnostic plots at once:
+
+```{r diagnostics, fig.height=7}
+par(mfrow = c(2, 2))
+plot(fit3)
+par(mfrow = c(1, 1))
+```
+
+**How I read each plot:**
+
+- **Residuals vs Fitted:** I want a flat, patternless cloud around zero. A clear curve would suggest the relationship is not linear.
+- **Normal Q-Q:** I want the points to follow the dashed diagonal. Large departures at the ends mean the residuals are not normal.
+- **Scale-Location:** I want an even spread. A funnel shape would mean the variance changes (heteroscedasticity).
+- **Residuals vs Leverage:** this finds points with a large influence on the fit. Points outside the Cook's distance lines deserve a closer look.
+
+Some numbers to go with the pictures:
+
+```{r diag-tests}
+shapiro.test(residuals(fit3))        # normality of residuals
+
+# Which observations are most influential?
+cooks <- cooks.distance(fit3)
+head(sort(cooks, decreasing = TRUE), 3)
+```
+
+The Shapiro-Wilk test has the null hypothesis that the residuals are normal, so a p-value above 0.05 means I have no evidence against normality. For Cook's distance, a common rule of thumb is to look closer at anything above about `4/n`:
+
+```{r cooks-threshold}
+n <- nrow(cars)
+names(cooks)[cooks > 4 / n]
+```
+
+**My conclusion:** the model is a decent description of the data, but the diagnostic plots in `mtcars` show a slight curve in the residuals and a few influential cars. So I would trust the overall message (heavier and more powerful cars use more fuel) more than the exact coefficient values. As a possible improvement, I could try a transformation such as `log(mpg)` or add a squared weight term, the same idea I used with the `women` data.
+
+I can also run the same check on the earlier `women` models:
+
+```{r diag-women, fig.height=7}
+par(mfrow = c(2, 2))
+plot(fit2)
+par(mfrow = c(1, 1))
+```
+
+---
+
+## What I learned
+
+- `lm(y ~ x1 + x2, data)` is the core tool, and `summary()` is where I read the story: coefficients, p-values and R-squared.
+- In multiple regression, each coefficient means "the effect of this variable while the others stay the same".
+- A higher R-squared does not automatically mean a better model. I compare models with `anova()` and AIC, and I prefer the simpler one when they perform about the same.
+- Diagnostics are not optional. Plotting the residuals tells me whether I can trust the model at all.
